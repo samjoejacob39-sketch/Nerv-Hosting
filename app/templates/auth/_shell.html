@@ -1,0 +1,37 @@
+{#
+  Centred single-card frame for the unauthenticated pages.
+
+  Overrides `base.html`'s `layout` block, which is what drops the sidebar and
+  header: neither makes sense before there is a `current_user` to describe.
+#}
+{% extends "base.html" %}
+{% import "macros/icons.html" as ico %}
+
+{% block layout %}
+<div class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12">
+  {# Ambient wash behind the card; purely decorative. #}
+  <div aria-hidden="true"
+       class="pointer-events-none absolute -top-48 left-1/2 h-96 w-[46rem] -translate-x-1/2 rounded-full bg-brand-500/10 blur-3xl"></div>
+
+  <main id="main" class="relative w-full max-w-md">
+    <div class="mb-8 flex flex-col items-center gap-4 text-center">
+      <a href="{{ url_for('core.index') }}"
+         class="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500 text-ink-950 shadow-xl shadow-brand-500/25 transition hover:bg-brand-400">
+        {{ ico.icon('bolt', 'h-6 w-6') }}
+      </a>
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-white">{% block heading %}{% endblock %}</h1>
+        <p class="mt-1.5 text-sm text-slate-400">{% block subheading %}{% endblock %}</p>
+      </div>
+    </div>
+
+    {% include "partials/_flashes.html" %}
+
+    <div class="rounded-2xl border border-ink-800 bg-ink-900/80 p-6 shadow-card backdrop-blur sm:p-8">
+      {% block content %}{% endblock %}
+    </div>
+
+    <p class="mt-6 text-center text-sm text-slate-500">{% block footer_link %}{% endblock %}</p>
+  </main>
+</div>
+{% endblock %}

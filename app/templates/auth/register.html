@@ -1,0 +1,39 @@
+{% extends "auth/_shell.html" %}
+{% from "macros/forms.html" import field, checkbox, submit %}
+
+{% block title %}Create an account{% endblock %}
+{% block heading %}Create your account{% endblock %}
+{% block subheading %}Spin up containers for bots, apps and web services.{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('auth.register') }}" novalidate class="space-y-5">
+  {# See the note in auth/login.html: resolves to nothing when CSRF is disabled. #}
+  {{ form.csrf_token }}
+
+  {{ field(form.username, placeholder='yourname', autocomplete='username', autofocus=true,
+           help='Letters, digits, dots, dashes and underscores. Starts and ends with a letter or digit.') }}
+  {{ field(form.email, placeholder='you@example.com', autocomplete='email') }}
+  {{ field(form.password, placeholder='Choose a strong password', autocomplete='new-password',
+           help='At least ' ~ config['MIN_PASSWORD_LENGTH'] ~ ' characters, combining three of: lowercase, uppercase, digits, symbols.') }}
+  {{ field(form.confirm_password, placeholder='Repeat your password', autocomplete='new-password') }}
+  {{ checkbox(form.accept_terms) }}
+
+  {{ submit('Create account') }}
+</form>
+
+<div class="mt-6 flex items-start gap-2.5 rounded-xl border border-ink-700/70 bg-ink-950/40 p-3.5 text-xs leading-relaxed text-slate-500">
+  <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500"></span>
+  <p>
+    New accounts start on the <span class="font-semibold text-slate-300">{{ ram_tiers[0].label }}</span>
+    tier &mdash; {{ ram_tiers[0].ram_mb }}&nbsp;MB RAM, {{ ram_tiers[0].cpu_percent }}%&nbsp;CPU &mdash;
+    and may run up to {{ max_servers_per_user }} containers.
+  </p>
+</div>
+{% endblock %}
+
+{% block footer_link %}
+Already have an account?
+<a href="{{ url_for('auth.login') }}" class="font-semibold text-brand-400 transition hover:text-brand-300">
+  Sign in
+</a>
+{% endblock %}

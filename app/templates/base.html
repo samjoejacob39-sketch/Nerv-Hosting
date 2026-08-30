@@ -1,0 +1,94 @@
+{#
+  The document shell every page inherits.
+
+  Layout contract:
+    * `{% block layout %}`  -- the whole page frame.  The default is the signed-in
+      application shell (fixed sidebar + sticky header); `auth/_shell.html`
+      overrides it with a centred single-card frame.
+    * `{% block content %}` -- the page body inside whichever frame is active.
+#}
+<!DOCTYPE html>
+<html lang="en" class="h-full scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0f16">
+  <title>{% block title %}{% endblock %}{% if self.title() %} &middot; {% endif %}VpsHosting</title>
+
+  {#
+    CSRF token for AJAX: fetch()/XHR must echo this back in the `X-CSRFToken`
+    header, since a JSON body carries no hidden form field for CSRFProtect to
+    find.  `csrf_token()` is the Jinja global registered by Flask-WTF.
+  #}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+
+  {# Tailwind via the Play CDN, per the Phase 2 brief.  It compiles in the
+     browser and watches the DOM, so classes that `sidebar.js` adds at runtime
+     are generated too.  A real build step belongs in the production phase. #}
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+          },
+          colors: {
+            // Dark slate surfaces, lightest at the top of the stack.
+            ink: {
+              950: '#0a0f16', 900: '#0f1620', 850: '#131c27', 800: '#18222f',
+              750: '#1e2938', 700: '#243140', 600: '#334458', 500: '#475b74',
+            },
+            // High-contrast lime accent for calls to action.
+            brand: {
+              200: '#d9f99d', 300: '#bef264', 400: '#a3e635',
+              500: '#84cc16', 600: '#65a30d', 700: '#4d7c0f',
+            },
+          },
+          boxShadow: {
+            card: '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 12px 32px -12px rgba(0,0,0,0.7)',
+          },
+        },
+      },
+    }
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-full bg-ink-950 font-sans text-slate-300 antialiased selection:bg-brand-500/30">
+
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-brand-500 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-ink-950">
+  Skip to content
+</a>
+
+{% block layout %}
+<div class="flex min-h-screen flex-col {% if current_user.is_authenticated %}lg:pl-72{% endif %}">
+  {% include "partials/_sidebar.html" %}
+  {% include "partials/_header.html" %}
+
+  <main id="main" class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+    {% include "partials/_flashes.html" %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="mx-auto w-full max-w-7xl px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-2 border-t border-ink-800 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <p>&copy; {{ current_year }} VpsHosting. Containers for bots, apps and web services.</p>
+      <p class="font-mono text-[0.7rem] uppercase tracking-wider text-slate-600">
+        {{ config['CONFIG_NAME'] }} build
+      </p>
+    </div>
+  </footer>
+</div>
+{% endblock %}
+
+<script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

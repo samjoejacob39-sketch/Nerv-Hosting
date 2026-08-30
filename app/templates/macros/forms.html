@@ -1,0 +1,80 @@
+{#
+  Form field macros.
+
+  Every input in the app renders through here so that focus rings, error states
+  and the label/description/error wiring for screen readers stay consistent.
+  The field objects are the WTForms instances the views pass in
+  (``RegistrationForm`` / ``LoginForm``), so the rendered ``name`` attributes are
+  exactly what the validators expect -- nothing is hand-typed.
+#}
+{% import "macros/icons.html" as ico %}
+
+{% set INPUT_BASE = 'block w-full rounded-xl border bg-ink-950/60 px-4 py-3 text-sm text-slate-100 placeholder-slate-500 shadow-inner shadow-black/30 outline-none transition duration-150 focus:ring-2' %}
+{% set INPUT_REST = 'border-ink-600 hover:border-ink-500 focus:border-brand-500 focus:ring-brand-500/25' %}
+{% set INPUT_INVALID = 'border-rose-500/70 focus:border-rose-400 focus:ring-rose-500/25' %}
+
+
+{% macro field_errors(f) -%}
+{% if f.errors %}
+<ul id="{{ f.id }}-error" class="mt-2 space-y-1 text-xs font-medium text-rose-300">
+  {% for message in f.errors %}
+  <li class="flex items-start gap-1.5">
+    {{ ico.icon('alert', 'mt-0.5 h-3.5 w-3.5 shrink-0') }}<span>{{ message }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{%- endmacro %}
+
+
+{% macro field(f, placeholder='', autocomplete=none, autofocus=false, help=none) -%}
+{# Assemble the attribute dict first: WTForms renders `None` literally, so an #}
+{# optional attribute has to be absent from the mapping rather than nulled.   #}
+{% set described = [] %}
+{% if help %}{% set _ = described.append(f.id ~ '-help') %}{% endif %}
+{% if f.errors %}{% set _ = described.append(f.id ~ '-error') %}{% endif %}
+{% set attrs = {'class': INPUT_BASE ~ ' ' ~ (INPUT_INVALID if f.errors else INPUT_REST)} %}
+{% if placeholder %}{% set _ = attrs.update({'placeholder': placeholder}) %}{% endif %}
+{% if autocomplete %}{% set _ = attrs.update({'autocomplete': autocomplete}) %}{% endif %}
+{% if autofocus %}{% set _ = attrs.update({'autofocus': true}) %}{% endif %}
+{% if f.errors %}{% set _ = attrs.update({'aria_invalid': 'true'}) %}{% endif %}
+{% if described %}{% set _ = attrs.update({'aria_describedby': described | join(' ')}) %}{% endif %}
+<div class="space-y-2">
+  <label for="{{ f.id }}" class="flex items-baseline justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+    <span>{{ f.label.text }}</span>
+    {% if f.flags.required %}<span class="text-[0.65rem] font-medium normal-case tracking-normal text-slate-500">required</span>{% endif %}
+  </label>
+  {{ f(**attrs) }}
+  {% if help %}
+  <p id="{{ f.id }}-help" class="text-xs leading-relaxed text-slate-500">{{ help }}</p>
+  {% endif %}
+  {{ field_errors(f) }}
+</div>
+{%- endmacro %}
+
+
+{% macro checkbox(f, help=none) -%}
+<div>
+  <label for="{{ f.id }}" class="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-700 bg-ink-950/40 p-3.5 transition hover:border-ink-600 hover:bg-ink-900/60">
+    {{ f(class='mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-ink-500 bg-ink-900 text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0') }}
+    <span class="text-sm text-slate-300">
+      {{ f.label.text }}
+      {% if help %}<span class="mt-1 block text-xs text-slate-500">{{ help }}</span>{% endif %}
+    </span>
+  </label>
+  {{ field_errors(f) }}
+</div>
+{%- endmacro %}
+
+
+{#
+  The primary call to action: lime on near-black, which is the highest-contrast
+  pairing in the palette and reads as the one "do it" control on the page.
+#}
+{% macro submit(label, icon_name='arrow-right') -%}
+<button type="submit"
+        class="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold tracking-wide text-ink-950 shadow-lg shadow-brand-500/20 transition hover:bg-brand-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950 active:translate-y-px">
+  <span>{{ label }}</span>
+  {{ ico.icon(icon_name, 'h-4 w-4 transition-transform group-hover:translate-x-0.5') }}
+</button>
+{%- endmacro %}

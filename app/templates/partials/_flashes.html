@@ -1,0 +1,14 @@
+{% import "macros/icons.html" as ico %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="mb-6 space-y-2" role="status" aria-live="polite">
+  {% for category, message in messages %}
+  {% set style = category | flash_style %}
+  <div class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm {{ style.chip }}">
+    {{ ico.icon(style.icon, 'mt-0.5 h-4 w-4 shrink-0') }}
+    <p class="flex-1">{{ message }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}

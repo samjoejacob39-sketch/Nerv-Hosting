@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% import "macros/icons.html" as ico %}
+
+{% block title %}Admin Server Overview{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('admin.index') }}" class="text-xs font-semibold text-brand-400 hover:text-brand-300">&larr; Back to Admin</a>
+      </div>
+      <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-white">System Server Overview</h1>
+      <p class="mt-1 text-sm text-slate-400">All provisioned containers, owner mapping, subdomains, and node allocations.</p>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 shadow-card">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="border-b border-ink-800 bg-ink-950/60 uppercase tracking-wider text-slate-500 font-bold">
+          <tr>
+            <th class="px-5 py-3">Server / ID</th>
+            <th class="px-5 py-3">Owner</th>
+            <th class="px-5 py-3">RAM Tier</th>
+            <th class="px-5 py-3">Hourly Cost</th>
+            <th class="px-5 py-3">Subdomain</th>
+            <th class="px-5 py-3">Panel ID</th>
+            <th class="px-5 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-ink-800/60 font-medium">
+          {% for s in servers %}
+          <tr class="transition hover:bg-ink-850/50">
+            <td class="px-5 py-3 text-white">
+              <span class="font-bold">{{ s.name }}</span>
+              <span class="block text-[0.65rem] text-slate-500 font-mono">#{{ s.id }} &middot; {{ s.server_type }}</span>
+            </td>
+            <td class="px-5 py-3 text-slate-300">
+              {% if s.owner %}
+              <span class="font-semibold text-white">@{{ s.owner.username }}</span>
+              <span class="block text-[0.65rem] text-slate-500">${{ s.owner.credit_balance | credits }}</span>
+              {% else %}
+              <span class="text-slate-500 italic">None</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 tabular-nums text-slate-200">{{ s.tier.label }} ({{ s.ram_mb }} MB)</td>
+            <td class="px-5 py-3 tabular-nums font-bold text-brand-400">${{ s.hourly_credits | credits }}/h</td>
+            <td class="px-5 py-3 font-mono text-[0.7rem] text-slate-300">
+              {% if s.subdomain %}
+              <span class="text-brand-400">{{ s.subdomain }}</span>
+              {% else %}
+              <span class="text-slate-600">-</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 font-mono text-slate-400">
+              {% if s.pterodactyl_server_id %}
+              {{ s.pterodactyl_server_id }}
+              {% else %}
+              <span class="text-amber-400/80">Pending</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3">
+              <span class="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[0.65rem] font-bold uppercase
+                {% if s.status == 'running' %}bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20
+                {% elif s.status in ['starting', 'stopping'] %}bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/20
+                {% elif s.status == 'suspended' %}bg-rose-500/10 text-rose-400 ring-1 ring-inset ring-rose-500/20
+                {% else %}bg-slate-500/10 text-slate-400 ring-1 ring-inset ring-slate-500/20{% endif %}">
+                {{ s.status }}
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="px-5 py-8 text-center text-slate-500">No servers deployed yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m flask init-db)",
+      "Bash(.venv/Scripts/python.exe -m flask create-user --username Demo_User --email demo@example.com --password 'Sw1ft-Otter!42' --credits 25.5)",
+      "Bash(.venv/Scripts/python.exe -m flask list-users)",
+      "Bash(.venv/Scripts/python.exe _check_flow.py)",
+      "Bash(.venv/Scripts/python.exe _check_flow2.py)",
+      "Bash(.venv/Scripts/python.exe -m flask db migrate -m \"initial schema: users, servers, shared_access\")"
+    ]
+  }
+}

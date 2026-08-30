@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "macros/icons.html" as ico %}
+
+{% block title %}Admin User Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('admin.index') }}" class="text-xs font-semibold text-brand-400 hover:text-brand-300">&larr; Back to Admin</a>
+      </div>
+      <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-white">User Management</h1>
+      <p class="mt-1 text-sm text-slate-400">Search users, modify balances, and manage account statuses.</p>
+    </div>
+  </div>
+
+  {# Search Form #}
+  <div class="rounded-2xl border border-ink-800 bg-ink-900 p-4 shadow-card">
+    <form method="get" action="{{ url_for('admin.users') }}" class="flex gap-2">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search by username or email..."
+             class="w-full rounded-xl border border-ink-700 bg-ink-950 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
+      <button type="submit" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-ink-950 transition hover:bg-brand-400">
+        {{ ico.icon('search', 'h-4 w-4') }}<span>Search</span>
+      </button>
+    </form>
+  </div>
+
+  {# Users Table #}
+  <div class="overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 shadow-card">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="border-b border-ink-800 bg-ink-950/60 uppercase tracking-wider text-slate-500 font-bold">
+          <tr>
+            <th class="px-5 py-3">ID / User</th>
+            <th class="px-5 py-3">Email</th>
+            <th class="px-5 py-3">Credit Balance</th>
+            <th class="px-5 py-3">Status</th>
+            <th class="px-5 py-3">Role</th>
+            <th class="px-5 py-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-ink-800/60 font-medium">
+          {% for u in users %}
+          <tr class="transition hover:bg-ink-850/50">
+            <td class="px-5 py-3 text-white">
+              <span class="font-bold">@{{ u.username }}</span>
+              <span class="block text-[0.65rem] text-slate-500 font-mono">#{{ u.id }}</span>
+            </td>
+            <td class="px-5 py-3 text-slate-300">{{ u.email }}</td>
+            <td class="px-5 py-3 tabular-nums font-bold text-brand-400">${{ u.credit_balance | credits }}</td>
+            <td class="px-5 py-3">
+              {% if u.is_active %}
+              <span class="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-400 ring-1 ring-inset ring-emerald-500/20">Active</span>
+              {% else %}
+              <span class="inline-flex items-center rounded-md bg-rose-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-rose-400 ring-1 ring-inset ring-rose-500/20">Suspended</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3">
+              {% if u.is_admin %}
+              <span class="inline-flex items-center rounded-md bg-purple-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-purple-400 ring-1 ring-inset ring-purple-500/20">Admin</span>
+              {% else %}
+              <span class="text-slate-500">User</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 text-right">
+              <div class="inline-flex items-center gap-2">
+                {# Credit adjust form #}
+                <form method="post" action="{{ url_for('admin.adjust_credits', user_id=u.id) }}" class="inline-flex items-center gap-1">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="number" step="0.01" min="0.01" name="amount" placeholder="$" required
+                         class="w-16 rounded-lg border border-ink-700 bg-ink-950 px-2 py-1 text-[0.65rem] text-slate-200 focus:border-brand-400 focus:outline-none">
+                  <button type="submit" name="action" value="add" title="Add Credits"
+                          class="rounded-lg bg-emerald-500/10 p-1 text-emerald-400 hover:bg-emerald-500/20">
+                    +
+                  </button>
+                  <button type="submit" name="action" value="deduct" title="Deduct Credits"
+                          class="rounded-lg bg-amber-500/10 p-1 text-amber-400 hover:bg-amber-500/20">
+                    -
+                  </button>
+                </form>
+
+                {% if u.id != current_user.id %}
+                <form method="post" action="{{ url_for('admin.toggle_suspend_user', user_id=u.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="rounded-lg border border-ink-700 px-2 py-1 text-[0.65rem] font-bold {% if u.is_active %}text-rose-400 hover:bg-rose-500/10{% else %}text-emerald-400 hover:bg-emerald-500/10{% endif %}">
+                    {% if u.is_active %}Suspend{% else %}Unsuspend{% endif %}
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="px-5 py-8 text-center text-slate-500">No users found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

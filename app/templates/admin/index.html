@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "macros/icons.html" as ico %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="rounded-md bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-400 ring-1 ring-inset ring-rose-500/30">ADMINISTRATION</span>
+      </div>
+      <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">System & Financial Analytics</h1>
+      <p class="mt-1 text-sm text-slate-400">Live operational oversight, user balances, and container workloads.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('admin.users') }}" class="inline-flex items-center gap-2 rounded-xl bg-ink-800 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-ink-700">
+        {{ ico.icon('users', 'h-4 w-4 text-brand-400') }}<span>User Management</span>
+      </a>
+      <a href="{{ url_for('admin.servers') }}" class="inline-flex items-center gap-2 rounded-xl bg-ink-800 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-ink-700">
+        {{ ico.icon('server', 'h-4 w-4 text-brand-400') }}<span>Server Overview</span>
+      </a>
+    </div>
+  </div>
+
+  {# System KPIs #}
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total System Credits</p>
+      <p class="mt-3 text-3xl font-extrabold tabular-nums text-brand-400">${{ metrics.total_credits }}</p>
+      <p class="mt-1 text-xs text-slate-400">Aggregated user balances</p>
+    </div>
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Hourly Revenue Run-rate</p>
+      <p class="mt-3 text-3xl font-extrabold tabular-nums text-emerald-400">${{ metrics.hourly_run_rate }}/h</p>
+      <p class="mt-1 text-xs text-slate-400">Active billable containers</p>
+    </div>
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Memory Overhead</p>
+      <p class="mt-3 text-3xl font-extrabold tabular-nums text-amber-400">{{ (metrics.total_ram_mb / 1024) | round(1) }} GB</p>
+      <p class="mt-1 text-xs text-slate-400">{{ metrics.total_ram_mb }} MB across nodes</p>
+    </div>
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Users & Active Containers</p>
+      <p class="mt-3 text-3xl font-extrabold tabular-nums text-white">{{ metrics.active_users }} / {{ metrics.active_containers }}</p>
+      <p class="mt-1 text-xs text-slate-400">{{ metrics.total_users }} registered accounts</p>
+    </div>
+  </div>
+
+  {# Quick Navigation Cards #}
+  <div class="grid gap-6 sm:grid-cols-2">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-6 shadow-card">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-brand-500/10 p-3 text-brand-400">
+          {{ ico.icon('users', 'h-6 w-6') }}
+        </div>
+        <div>
+          <h2 class="text-base font-bold text-white">Manage Accounts</h2>
+          <p class="text-xs text-slate-400">Search users, grant/deduct wallet credits, and suspend abusive users.</p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <a href="{{ url_for('admin.users') }}" class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-400 hover:text-brand-300">
+          Search Users &rarr;
+        </a>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-6 shadow-card">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-cyan-500/10 p-3 text-cyan-400">
+          {{ ico.icon('server', 'h-6 w-6') }}
+        </div>
+        <div>
+          <h2 class="text-base font-bold text-white">Container Workloads</h2>
+          <p class="text-xs text-slate-400">Review status, subdomains, and ownership of all hosted servers.</p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <a href="{{ url_for('admin.servers') }}" class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-400 hover:text-brand-300">
+          View All Servers &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

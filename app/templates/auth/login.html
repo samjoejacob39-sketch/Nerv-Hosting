@@ -1,0 +1,40 @@
+{% extends "auth/_shell.html" %}
+{% from "macros/forms.html" import field, checkbox, submit %}
+
+{% block title %}Sign in{% endblock %}
+{% block heading %}Welcome back{% endblock %}
+{% block subheading %}Sign in to manage your containers.{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('auth.login') }}" novalidate class="space-y-5">
+  {#
+    Renders the hidden CSRF input.  In the testing config `WTF_CSRF_ENABLED` is
+    false, WTForms omits the field entirely, and this resolves to Undefined ->
+    empty output rather than an error.
+  #}
+  {{ form.csrf_token }}
+
+  {#
+    Carry the requested destination through the round trip.  The view resolves it
+    with `safe_redirect_target()`, so an off-site value is discarded rather than
+    followed.
+  #}
+  {% if request.args.get('next') %}
+  <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+  {% endif %}
+
+  {{ field(form.identity, placeholder='username or you@example.com',
+           autocomplete='username', autofocus=true) }}
+  {{ field(form.password, placeholder='Your password', autocomplete='current-password') }}
+  {{ checkbox(form.remember_me, help='Keeps this browser signed in with a longer-lived session cookie.') }}
+
+  {{ submit('Sign in') }}
+</form>
+{% endblock %}
+
+{% block footer_link %}
+New around here?
+<a href="{{ url_for('auth.register') }}" class="font-semibold text-brand-400 transition hover:text-brand-300">
+  Create an account
+</a>
+{% endblock %}

@@ -1,0 +1,862 @@
+{% extends "base.html" %}
+{% import "macros/icons.html" as ico %}
+{% from "macros/forms.html" import field, submit %}
+
+{# A child template's top-level `set` is visible to the parent, which is how the
+   header partial picks up the page title without a render_template kwarg. #}
+{% set page_heading = 'Dashboard' %}
+{% set page_subheading = 'Your containers at a glance' %}
+
+{% block title %}Dashboard{% endblock %}
+
+
+{#
+  One card per container.  Every value comes off the `Server` model, so the grid
+  is already correct the moment Phase 3 starts creating rows.
+#}
+{% macro server_card(server, shared=false) %}
+{% set style = server.status | status_style %}
+<article data-server-card="{{ server.id }}" data-server-status="{{ server.status }}" class="flex flex-col rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card transition hover:border-ink-600">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <h3 class="truncate text-base font-bold tracking-tight text-white">{{ server.name }}</h3>
+        {% if shared %}
+        <span class="inline-flex shrink-0 items-center rounded-md bg-sky-500/10 px-1.5 py-0.5 text-[0.65rem] font-bold text-sky-400 ring-1 ring-inset ring-sky-400/20">
+          Shared by @{{ server.owner.username }}
+        </span>
+        {% else %}
+        <span class="inline-flex shrink-0 items-center rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[0.65rem] font-bold text-brand-400 ring-1 ring-inset ring-brand-400/20">
+          Owner
+        </span>
+        {% endif %}
+      </div>
+      <p class="mt-0.5 truncate text-xs text-slate-500">
+        {% if shared %}
+        Co-managed with {{ server.owner.username }}
+        {% else %}
+        created {{ server.created_at_utc | datetime }}
+        {% endif %}
+      </p>
+    </div>
+    <span data-status-badge class="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[0.7rem] font-bold uppercase tracking-wide ring-1 ring-inset {{ style.chip }}">
+      <span data-status-dot class="h-1.5 w-1.5 rounded-full {{ style.dot }}"></span><span data-status-label>{{ style.label }}</span>
+    </span>
+  </div>
+
+  <dl class="mt-5 grid grid-cols-3 gap-2 border-t border-ink-800 pt-4 text-center">
+    <div>
+      <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-500">Tier</dt>
+      <dd class="mt-1 text-sm font-semibold text-slate-200">{{ server.tier.label }}</dd>
+    </div>
+    <div>
+      <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-500">RAM</dt>
+      <dd class="mt-1 text-sm font-semibold tabular-nums text-slate-200">{{ server.ram_mb }} MB</dd>
+    </div>
+    <div>
+      <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-500">Per hour</dt>
+      <dd class="mt-1 text-sm font-semibold tabular-nums text-slate-200">{{ server.hourly_credits | credits }}</dd>
+    </div>
+  </dl>
+
+  <div class="mt-5 grid grid-cols-3 gap-2">
+    <button type="button"
+            data-power-action="start"
+            data-server-id="{{ server.id }}"
+            {% if server.status in ['running', 'starting', 'stopping', 'deleting'] %}disabled{% endif %}
+            title="Start container"
+            class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-2.5 py-2 text-xs font-bold uppercase tracking-wide text-brand-400 transition hover:bg-ink-750 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40">
+      {{ ico.icon('play', 'h-3.5 w-3.5') }}<span>Start</span>
+    </button>
+    <button type="button"
+            data-power-action="restart"
+            data-server-id="{{ server.id }}"
+            {% if server.status not in ['running', 'starting'] %}disabled{% endif %}
+            title="Restart container"
+            class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-2.5 py-2 text-xs font-bold uppercase tracking-wide text-amber-400 transition hover:bg-ink-750 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+      {{ ico.icon('restart', 'h-3.5 w-3.5') }}<span>Restart</span>
+    </button>
+    <button type="button"
+            data-power-action="stop"
+            data-server-id="{{ server.id }}"
+            {% if server.status not in ['running', 'starting'] %}disabled{% endif %}
+            title="Stop container"
+            class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-2.5 py-2 text-xs font-bold uppercase tracking-wide text-rose-400 transition hover:bg-ink-750 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40">
+      {{ ico.icon('stop', 'h-3.5 w-3.5') }}<span>Stop</span>
+    </button>
+  </div>
+
+  <div class="mt-3 flex items-center justify-between border-t border-ink-800/60 pt-2.5">
+    <div class="flex items-center gap-3">
+      <button type="button"
+              data-open-console="{{ server.id }}"
+              data-server-name="{{ server.name }}"
+              {% if not server.is_provisioned %}disabled{% endif %}
+              class="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 transition hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Live Terminal Console">
+        {{ ico.icon('terminal', 'h-3.5 w-3.5') }}<span>Console</span>
+      </button>
+      <button type="button"
+              data-open-filemanager="{{ server.id }}"
+              data-server-name="{{ server.name }}"
+              {% if not server.is_provisioned %}disabled{% endif %}
+              class="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 transition hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              title="File Browser & Editor">
+        {{ ico.icon('document', 'h-3.5 w-3.5') }}<span>Files</span>
+      </button>
+    </div>
+
+    {% if not shared %}
+    <div class="flex items-center gap-3">
+      <button type="button"
+              data-open-subdomain-modal="{{ server.id }}"
+              data-server-name="{{ server.name }}"
+              data-subdomain="{{ server.subdomain or '' }}"
+              class="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 transition hover:text-amber-400"
+              title="Cloudflare DNS Routing">
+        {{ ico.icon('globe', 'h-3.5 w-3.5') }}<span>{% if server.subdomain %}{{ server.subdomain }}{% else %}DNS{% endif %}</span>
+      </button>
+      <button type="button"
+              data-open-share-modal="{{ server.id }}"
+              data-server-name="{{ server.name }}"
+              class="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 transition hover:text-white"
+              title="Collaborators">
+        {{ ico.icon('users', 'h-3.5 w-3.5 text-brand-400') }}<span data-guest-count-label="{{ server.id }}">({{ server.shared_accesses | length }})</span>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</article>
+{% endmacro %}
+
+
+{% macro stat(label, value, unit, icon_name, accent='text-brand-400') %}
+<div class="rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-card">
+  <div class="flex items-center gap-2">
+    {{ ico.icon(icon_name, 'h-4 w-4 shrink-0 ' ~ accent) }}
+    <p class="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-slate-500">{{ label }}</p>
+  </div>
+  <p class="mt-3 flex items-baseline gap-1.5">
+    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-white">{{ value }}</span>
+    <span class="text-xs font-semibold text-slate-500">{{ unit }}</span>
+  </p>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="flex gap-6 items-start">
+  {# Left Skyscraper Ad Slot #}
+  <aside class="hidden xl:flex w-40 shrink-0 flex-col gap-4 sticky top-24">
+    <div class="relative w-full h-[600px] rounded-2xl border border-ink-800 bg-ink-900/60 p-4 shadow-card flex items-center justify-center text-center overflow-hidden">
+      <div class="absolute inset-0 p-4 flex flex-col items-center justify-center text-center z-0">
+        {{ ico.icon('alert', 'h-6 w-6 text-amber-400 mb-2') }}
+        <p class="text-xs font-semibold text-amber-200/90 leading-tight">
+          Ad-blocker active! Please whitelist us—ads keep your servers free.
+        </p>
+      </div>
+      <div class="adsbygoogle ad-banner pub_300x250 relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+        <!-- Live Ad Frame -->
+      </div>
+    </div>
+  </aside>
+
+  {# Central Dashboard Content #}
+  <div class="flex-1 min-w-0">
+    <section class="mb-8 overflow-hidden rounded-2xl border border-ink-800 bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 shadow-card">
+      <div class="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <div class="min-w-0">
+          <p class="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-400">Welcome back</p>
+          <h2 class="mt-2 truncate text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            {{ current_user.username }}
+          </h2>
+          <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-400">
+            {% if limits.servers_used %}
+            You have {{ limits.servers_used }} of {{ limits.max_servers }} container
+            slot{{ '' if limits.max_servers == 1 else 's' }} in use.
+            {% else %}
+            You have no containers yet. Create your first one to get started.
+            {% endif %}
+          </p>
+        </div>
+        <a href="#deploy"
+           class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-ink-950 shadow-lg shadow-brand-500/20 transition hover:bg-brand-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950">
+          {{ ico.icon('plus', 'h-4 w-4') }}<span>New container</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {{ stat('Credit balance', current_user.credit_balance | credits, 'credits', 'coins') }}
+      {{ stat('Containers', limits.servers_used ~ ' / ' ~ limits.max_servers, 'in use', 'server') }}
+      {{ stat('Free slots', limits.slots_remaining, 'available', 'disk',
+              'text-slate-400' if not limits.slots_remaining else 'text-brand-400') }}
+    </section>
+
+    {#
+      Provisioning. Posts to the same `/dashboard/deploy` route the API clients use;
+      the CSRF token comes from the form object, and `base.html` also publishes one
+      in a <meta> tag for AJAX callers.
+    #}
+    <section id="deploy" class="mb-8 rounded-2xl border border-ink-800 bg-ink-900 p-6 shadow-card sm:p-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h2 class="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+            {{ ico.icon('bolt', 'h-4 w-4 text-brand-400') }}<span>Deploy a Minecraft server</span>
+          </h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            Built on our node in about a minute. The startup cost is charged once, up front.
+          </p>
+        </div>
+        <p class="text-xs font-semibold text-slate-400">
+          Balance <span class="tabular-nums text-brand-400">{{ current_user.credit_balance | credits }}</span>
+        </p>
+      </div>
+
+      {% if limits.slots_remaining %}
+      <form method="post" action="{{ url_for('dashboard.deploy') }}" novalidate
+            class="mt-6 grid gap-5 sm:grid-cols-2">
+        {{ form.hidden_tag() }}
+        {{ field(form.server_name, placeholder='my-survival-world', autocomplete='off') }}
+        {{ field(form.ram_tier, help='Minecraft needs at least 2 GB.') }}
+        <div class="sm:col-span-2 sm:max-w-xs">
+          {{ submit('Deploy server', 'bolt') }}
+        </div>
+      </form>
+      {% else %}
+      <p class="mt-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+        All {{ limits.max_servers }} of your container slots are in use. Delete one to deploy another.
+      </p>
+      {% endif %}
+    </section>
+
+    <section>
+      <div class="mb-4 flex items-end justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold tracking-tight text-white">Your containers</h2>
+          <p class="mt-0.5 text-xs text-slate-500">Owned by this account.</p>
+        </div>
+        <span class="rounded-lg border border-ink-700 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-400">
+          {{ owned_servers | length }}
+        </span>
+      </div>
+
+      <div data-server-grid class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for server in owned_servers %}
+        {{ server_card(server) }}
+        {% else %}
+        <div class="rounded-2xl border-2 border-dashed border-ink-700 bg-ink-900/40 p-8 text-center sm:col-span-2 xl:col-span-3">
+          <span class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-ink-800 text-slate-500">
+            {{ ico.icon('server', 'h-6 w-6') }}
+          </span>
+          <h3 class="mt-4 text-base font-bold text-white">No containers yet</h3>
+          <p class="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-slate-500">
+            Pick a tier above and we will build a Minecraft server for you in about a minute.
+          </p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if shared_servers %}
+    <section class="mt-10">
+      <div class="mb-4 flex items-end justify-between gap-4">
+        <div>
+          <h2 class="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+            {{ ico.icon('share', 'h-4 w-4 text-slate-500') }}<span>Shared with you</span>
+          </h2>
+          <p class="mt-0.5 text-xs text-slate-500">Containers other accounts let you manage.</p>
+        </div>
+        <span class="rounded-lg border border-ink-700 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-400">
+          {{ shared_servers | length }}
+        </span>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for server in shared_servers %}
+        {{ server_card(server, shared=true) }}
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="mt-10">
+      <h2 class="text-lg font-bold tracking-tight text-white">Available tiers</h2>
+      <p class="mt-0.5 text-xs text-slate-500">One-off startup cost, then an hourly rate while the container runs.</p>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {% for tier in ram_tiers %}
+        <div class="rounded-2xl border border-ink-800 bg-ink-900 p-4 shadow-card">
+          <div class="flex items-baseline justify-between">
+            <p class="text-sm font-bold text-white">{{ tier.label }}</p>
+            <p class="text-xs font-bold tabular-nums text-brand-400">
+              {{ tier.hourly_credits | credits }}<span class="font-medium text-slate-500">/h</span>
+            </p>
+          </div>
+          <dl class="mt-3 space-y-1 text-xs text-slate-500">
+            <div class="flex justify-between"><dt>RAM</dt><dd class="tabular-nums text-slate-300">{{ tier.ram_mb }} MB</dd></div>
+            <div class="flex justify-between"><dt>Disk</dt><dd class="tabular-nums text-slate-300">{{ tier.disk_mb }} MB</dd></div>
+            <div class="flex justify-between"><dt>CPU</dt><dd class="tabular-nums text-slate-300">{{ tier.cpu_percent }}%</dd></div>
+            <div class="flex justify-between"><dt>Startup</dt><dd class="tabular-nums text-slate-300">{{ tier.startup_credits | credits }}</dd></div>
+          </dl>
+          {% if not tier.deployable %}
+          <p class="mt-3 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">Not available for Minecraft</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  {# Right Skyscraper Ad Slot #}
+  <aside class="hidden xl:flex w-40 shrink-0 flex-col gap-4 sticky top-24">
+    <div class="relative w-full h-[600px] rounded-2xl border border-ink-800 bg-ink-900/60 p-4 shadow-card flex items-center justify-center text-center overflow-hidden">
+      <div class="absolute inset-0 p-4 flex flex-col items-center justify-center text-center z-0">
+        {{ ico.icon('alert', 'h-6 w-6 text-amber-400 mb-2') }}
+        <p class="text-xs font-semibold text-amber-200/90 leading-tight">
+          Ad-blocker active! Please whitelist us—ads keep your servers free.
+        </p>
+      </div>
+      <div class="adsbygoogle ad-banner pub_300x250 relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+        <!-- Live Ad Frame -->
+      </div>
+    </div>
+  </aside>
+</div>
+
+{# Anti-Adblock Penalty Modal #}
+<div id="adblock-modal" class="fixed inset-0 z-[100] hidden overflow-y-auto bg-ink-950/90 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="adblock-modal-title">
+  <div class="flex min-h-screen items-center justify-center p-4 text-center">
+    <div class="relative w-full max-w-md overflow-hidden rounded-3xl border border-amber-500/40 bg-ink-900 p-6 text-center shadow-2xl sm:p-8">
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-400/30">
+        {{ ico.icon('alert', 'h-7 w-7') }}
+      </div>
+      <h3 id="adblock-modal-title" class="mt-4 text-xl font-extrabold tracking-tight text-white">
+        Ad-Blocker Detected
+      </h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-400">
+        We rely on ads to provide and maintain free game and web servers. Please consider disabling your ad-blocker or whitelisting our website to support our free hosting platform.
+      </p>
+      <div class="mt-6">
+        <button type="button" id="adblock-dismiss-btn" disabled
+                class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-ink-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
+          I don't use an adblocker (3s)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Share Settings Modal #}
+<div id="share-modal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-ink-950/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+  <div class="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative w-full max-w-md overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 p-6 text-left shadow-2xl transition-all sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 id="share-modal-title" class="flex items-center gap-2 text-lg font-bold text-white">
+            {{ ico.icon('users', 'h-5 w-5 text-brand-400') }}<span>Share <span id="share-modal-server-name" class="text-brand-400"></span></span>
+          </h3>
+          <p class="mt-1 text-xs text-slate-400">
+            Invite collaborators to co-manage this server.
+          </p>
+        </div>
+        <button type="button" id="share-modal-close" class="rounded-lg p-1.5 text-slate-400 hover:bg-ink-800 hover:text-white">
+          {{ ico.icon('close', 'h-5 w-5') }}
+        </button>
+      </div>
+
+      <div class="mt-6">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Current Collaborators</h4>
+        <div id="share-guests-list" class="mt-3 space-y-2 max-h-48 overflow-y-auto">
+          <!-- Populated dynamically via JS -->
+        </div>
+        <p id="share-no-guests" class="mt-3 text-xs italic text-slate-500">No guests have been added yet.</p>
+      </div>
+
+      <form id="share-add-form" class="mt-6 border-t border-ink-800 pt-5">
+        <label for="share-username-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Add Collaborator</label>
+        <div class="mt-2 flex gap-2">
+          <input type="text" id="share-username-input" name="username" placeholder="Username (e.g. alex)" required
+                 class="block w-full rounded-xl border border-ink-700 bg-ink-950 px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
+          <button type="submit" id="share-submit-btn"
+                  class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-xs font-bold text-ink-950 transition hover:bg-brand-400">
+            {{ ico.icon('user-plus', 'h-4 w-4') }}<span>Invite</span>
+          </button>
+        </div>
+        <p id="share-feedback" class="mt-2 hidden text-xs font-medium"></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# Console Modal #}
+<div id="console-modal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-ink-950/85 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="console-modal-title">
+  <div class="flex min-h-screen items-center justify-center p-4 text-center">
+    <div class="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 p-6 text-left shadow-2xl transition-all">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 id="console-modal-title" class="flex items-center gap-2 text-lg font-bold text-white">
+            {{ ico.icon('terminal', 'h-5 w-5 text-brand-400') }}<span>Live Console: <span id="console-modal-server-name" class="text-brand-400"></span></span>
+          </h3>
+          <p class="mt-1 text-xs text-slate-400">Direct streaming connection to container daemon.</p>
+        </div>
+        <button type="button" id="console-modal-close" class="rounded-lg p-1.5 text-slate-400 hover:bg-ink-800 hover:text-white">
+          {{ ico.icon('close', 'h-5 w-5') }}
+        </button>
+      </div>
+
+      <div id="console-output" class="mt-4 h-80 overflow-y-auto rounded-xl border border-ink-950 bg-black/80 p-4 font-mono text-xs text-slate-300 space-y-1">
+        <!-- Live streamed output -->
+      </div>
+
+      <form id="console-command-form" class="mt-4 flex gap-2">
+        <input type="text" id="console-command-input" placeholder="Type a command (e.g. /help, /say hello)..." autocomplete="off"
+               class="block w-full rounded-xl border border-ink-700 bg-ink-950 px-3.5 py-2 font-mono text-xs text-slate-200 placeholder-slate-500 focus:border-brand-400 focus:outline-none">
+        <button type="submit" class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-xs font-bold text-ink-950 transition hover:bg-brand-400">
+          {{ ico.icon('bolt', 'h-4 w-4') }}<span>Send</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# File Manager Modal #}
+<div id="filemanager-modal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-ink-950/85 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="filemanager-modal-title">
+  <div class="flex min-h-screen items-center justify-center p-4 text-center">
+    <div class="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 p-6 text-left shadow-2xl transition-all">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 id="filemanager-modal-title" class="flex items-center gap-2 text-lg font-bold text-white">
+            {{ ico.icon('document', 'h-5 w-5 text-cyan-400') }}<span>File Manager: <span id="filemanager-modal-server-name" class="text-cyan-400"></span></span>
+          </h3>
+          <p class="mt-1 text-xs text-slate-400 font-mono">Directory: <span id="filemanager-current-dir" class="text-slate-200">/</span></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="filemanager-backup-btn" class="inline-flex items-center gap-1.5 rounded-xl bg-ink-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-ink-700">
+            {{ ico.icon('disk', 'h-4 w-4 text-brand-400') }}<span>Create Backup</span>
+          </button>
+          <button type="button" id="filemanager-modal-close" class="rounded-lg p-1.5 text-slate-400 hover:bg-ink-800 hover:text-white">
+            {{ ico.icon('close', 'h-5 w-5') }}
+          </button>
+        </div>
+      </div>
+
+      {# File List #}
+      <div id="filemanager-list" class="mt-4 max-h-60 overflow-y-auto rounded-xl border border-ink-800 bg-ink-950/70 p-2 space-y-1">
+        <!-- Populated dynamically via JS -->
+      </div>
+
+      {# In-Browser Editor #}
+      <div id="filemanager-editor-container" class="mt-4 hidden border-t border-ink-800 pt-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-bold text-white font-mono flex items-center gap-2">
+            <span>Editing:</span><span id="filemanager-editing-filename" class="text-brand-400"></span>
+          </h4>
+          <div class="flex gap-2">
+            <button type="button" id="filemanager-close-editor-btn" class="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:text-white">Close Editor</button>
+            <button type="button" id="filemanager-save-btn" class="rounded-lg bg-brand-500 px-3 py-1 text-xs font-bold text-ink-950 hover:bg-brand-400">Save Changes</button>
+          </div>
+        </div>
+        <textarea id="filemanager-editor" rows="10" class="mt-2 block w-full rounded-xl border border-ink-700 bg-ink-950 p-3 font-mono text-xs text-slate-200 focus:border-brand-400 focus:outline-none"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Subdomain Modal #}
+<div id="subdomain-modal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-ink-950/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="subdomain-modal-title">
+  <div class="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative w-full max-w-md overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 p-6 text-left shadow-2xl transition-all sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 id="subdomain-modal-title" class="flex items-center gap-2 text-lg font-bold text-white">
+            {{ ico.icon('globe', 'h-5 w-5 text-amber-400') }}<span>Custom Subdomain</span>
+          </h3>
+          <p class="mt-1 text-xs text-slate-400">
+            Route players directly via Cloudflare DNS.
+          </p>
+        </div>
+        <button type="button" id="subdomain-modal-close" class="rounded-lg p-1.5 text-slate-400 hover:bg-ink-800 hover:text-white">
+          {{ ico.icon('close', 'h-5 w-5') }}
+        </button>
+      </div>
+
+      <form id="subdomain-form" class="mt-6">
+        <label for="subdomain-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Subdomain prefix</label>
+        <div class="mt-2 flex gap-2">
+          <input type="text" id="subdomain-input" name="subdomain" placeholder="sammjoe" required
+                 class="block w-full rounded-xl border border-ink-700 bg-ink-950 px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
+          <button type="submit" id="subdomain-submit-btn"
+                  class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-ink-950 transition hover:bg-amber-400">
+            <span>Claim</span>
+          </button>
+        </div>
+        <p id="subdomain-feedback" class="mt-2 hidden text-xs font-medium"></p>
+      </form>
+
+      <div id="subdomain-active-section" class="mt-4 hidden border-t border-ink-800 pt-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">Active Domain</p>
+            <p id="subdomain-active-label" class="text-sm font-bold text-brand-400 font-mono"></p>
+          </div>
+          <button type="button" id="subdomain-release-btn" class="rounded-lg border border-ink-700 px-2.5 py-1 text-xs font-bold text-rose-400 hover:bg-rose-500/10">
+            Release
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  'use strict';
+
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+  }
+
+  var STATUS_CONFIG = {
+    'running': { label: 'Online', chip: 'bg-brand-500/15 text-brand-300 ring-brand-400/30', dot: 'bg-brand-400' },
+    'starting': { label: 'Starting', chip: 'bg-amber-500/15 text-amber-300 ring-amber-400/25', dot: 'bg-amber-400 animate-pulse' },
+    'stopping': { label: 'Stopping', chip: 'bg-amber-500/15 text-amber-300 ring-amber-400/25', dot: 'bg-amber-400 animate-pulse' },
+    'stopped': { label: 'Offline', chip: 'bg-slate-500/15 text-slate-300 ring-slate-400/25', dot: 'bg-slate-500' },
+    'error': { label: 'Error', chip: 'bg-rose-500/15 text-rose-300 ring-rose-400/25', dot: 'bg-rose-400' },
+    'installing': { label: 'Installing', chip: 'bg-sky-500/15 text-sky-300 ring-sky-400/25', dot: 'bg-sky-400 animate-pulse' },
+    'pending': { label: 'Queued', chip: 'bg-slate-500/15 text-slate-300 ring-slate-400/25', dot: 'bg-slate-400' },
+    'suspended': { label: 'Suspended', chip: 'bg-amber-500/15 text-amber-300 ring-amber-400/25', dot: 'bg-amber-400' },
+    'deleting': { label: 'Deleting', chip: 'bg-rose-500/15 text-rose-300 ring-rose-400/25', dot: 'bg-rose-400 animate-pulse' }
+  };
+
+  function updateServerCardUI(card, status) {
+    card.setAttribute('data-server-status', status);
+    var badge = card.querySelector('[data-status-badge]');
+    var dot = card.querySelector('[data-status-dot]');
+    var label = card.querySelector('[data-status-label]');
+    var cfg = STATUS_CONFIG[status] || { label: status, chip: 'bg-slate-500/15 text-slate-300 ring-slate-400/25', dot: 'bg-slate-500' };
+
+    if (badge && dot && label) {
+      badge.className = 'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[0.7rem] font-bold uppercase tracking-wide ring-1 ring-inset ' + cfg.chip;
+      dot.className = 'h-1.5 w-1.5 rounded-full ' + cfg.dot;
+      label.textContent = cfg.label;
+    }
+
+    var startBtn = card.querySelector('[data-power-action="start"]');
+    var restartBtn = card.querySelector('[data-power-action="restart"]');
+    var stopBtn = card.querySelector('[data-power-action="stop"]');
+
+    if (startBtn) {
+      startBtn.disabled = ['running', 'starting', 'stopping', 'deleting'].indexOf(status) !== -1;
+    }
+    if (restartBtn) {
+      restartBtn.disabled = ['running', 'starting'].indexOf(status) === -1;
+    }
+    if (stopBtn) {
+      stopBtn.disabled = ['running', 'starting'].indexOf(status) === -1;
+    }
+  }
+
+  // Power action triggers
+  document.addEventListener('click', async function(e) {
+    var btn = e.target.closest('[data-power-action]');
+    if (!btn || btn.disabled) return;
+
+    var action = btn.getAttribute('data-power-action');
+    var serverId = btn.getAttribute('data-server-id');
+    var card = btn.closest('[data-server-card]');
+    if (!serverId || !card) return;
+
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="inline-block animate-spin h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full"></span>';
+
+    try {
+      var res = await fetch('/dashboard/server/' + serverId + '/power', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({ signal: action })
+      });
+      var data = await res.json();
+      if (res.ok && data.ok) {
+        if (data.data && data.data.status) {
+          updateServerCardUI(card, data.data.status);
+        }
+      } else {
+        alert((data.error && data.error.message) || 'Power action failed.');
+      }
+    } catch (err) {
+      alert('Network error while sending power action.');
+    } finally {
+      btn.innerHTML = origHtml;
+      var currentStatus = card.getAttribute('data-server-status');
+      updateServerCardUI(card, currentStatus);
+    }
+  });
+
+  // Share modal
+  var modal = document.getElementById('share-modal');
+  var modalClose = document.getElementById('share-modal-close');
+  var modalTitle = document.getElementById('share-modal-server-name');
+  var guestsList = document.getElementById('share-guests-list');
+  var noGuestsMsg = document.getElementById('share-no-guests');
+  var addForm = document.getElementById('share-add-form');
+  var usernameInput = document.getElementById('share-username-input');
+  var feedback = document.getElementById('share-feedback');
+
+  var activeServerId = null;
+
+  function showFeedback(msg, isError) {
+    if (!feedback) return;
+    feedback.textContent = msg;
+    feedback.className = isError ? 'mt-2 text-xs font-medium text-rose-400' : 'mt-2 text-xs font-medium text-brand-400';
+    feedback.classList.remove('hidden');
+  }
+
+  function hideFeedback() {
+    if (feedback) feedback.classList.add('hidden');
+  }
+
+  function renderGuests(guests) {
+    guestsList.innerHTML = '';
+    if (!guests || guests.length === 0) {
+      noGuestsMsg.classList.remove('hidden');
+      return;
+    }
+    noGuestsMsg.classList.add('hidden');
+
+    guests.forEach(function(grant) {
+      var row = document.createElement('div');
+      row.className = 'flex items-center justify-between rounded-xl border border-ink-800 bg-ink-950/60 px-3 py-2 text-xs';
+      row.innerHTML = '<span class="font-semibold text-slate-200">@' + grant.guest.username + '</span>' +
+        '<button type="button" data-unshare-btn data-user-id="' + grant.guest.id + '" class="text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider text-[0.65rem] transition">Revoke</button>';
+      guestsList.appendChild(row);
+    });
+
+    var countLabel = document.querySelector('[data-guest-count-label="' + activeServerId + '"]');
+    if (countLabel) {
+      countLabel.textContent = 'Share (' + guests.length + ')';
+    }
+  }
+
+  async function loadGuests(serverId) {
+    try {
+      var res = await fetch('/dashboard/server/' + serverId + '/guests', {
+        headers: { 'Accept': 'application/json' }
+      });
+      var data = await res.json();
+      if (res.ok && data.ok && data.data) {
+        renderGuests(data.data.guests || []);
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    var openBtn = e.target.closest('[data-open-share-modal]');
+    if (!openBtn) return;
+
+    activeServerId = openBtn.getAttribute('data-open-share-modal');
+    var serverName = openBtn.getAttribute('data-server-name');
+    if (modalTitle) modalTitle.textContent = serverName;
+    hideFeedback();
+    if (usernameInput) usernameInput.value = '';
+    if (modal) modal.classList.remove('hidden');
+    loadGuests(activeServerId);
+  });
+
+  if (modalClose) {
+    modalClose.addEventListener('click', function() {
+      if (modal) modal.classList.add('hidden');
+      activeServerId = null;
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+        activeServerId = null;
+      }
+    });
+  }
+
+  if (addForm) {
+    addForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!activeServerId) return;
+
+      var username = usernameInput.value.trim();
+      if (!username) return;
+
+      hideFeedback();
+      var submitBtn = document.getElementById('share-submit-btn');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        var res = await fetch('/dashboard/server/' + activeServerId + '/share', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify({ username: username })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+          usernameInput.value = '';
+          showFeedback('Granted access to @' + username + '.', false);
+          loadGuests(activeServerId);
+        } else {
+          showFeedback((data.error && data.error.message) || 'Failed to grant access.', true);
+        }
+      } catch (err) {
+        showFeedback('Network error while granting access.', true);
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  if (guestsList) {
+    guestsList.addEventListener('click', async function(e) {
+      var btn = e.target.closest('[data-unshare-btn]');
+      if (!btn || !activeServerId) return;
+
+      var userId = btn.getAttribute('data-user-id');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        var res = await fetch('/dashboard/server/' + activeServerId + '/unshare', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify({ user_id: userId })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+          loadGuests(activeServerId);
+        } else {
+          alert((data.error && data.error.message) || 'Failed to revoke access.');
+        }
+      } catch (err) {
+        alert('Network error while revoking access.');
+      }
+    });
+  }
+
+  // --- Subdomain Modal Interactions ---
+  var subdomainModal = document.getElementById('subdomain-modal');
+  var subdomainCloseBtn = document.getElementById('subdomain-modal-close');
+  var subdomainForm = document.getElementById('subdomain-form');
+  var subdomainInput = document.getElementById('subdomain-input');
+  var subdomainFeedback = document.getElementById('subdomain-feedback');
+  var subdomainActiveSection = document.getElementById('subdomain-active-section');
+  var subdomainActiveLabel = document.getElementById('subdomain-active-label');
+  var subdomainReleaseBtn = document.getElementById('subdomain-release-btn');
+  var activeSubdomainServerId = null;
+
+  function showSubdomainFeedback(msg, isError) {
+    if (!subdomainFeedback) return;
+    subdomainFeedback.textContent = msg;
+    subdomainFeedback.className = 'mt-2 text-xs font-medium ' + (isError ? 'text-rose-400' : 'text-emerald-400');
+    subdomainFeedback.classList.remove('hidden');
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-open-subdomain-modal]');
+    if (!btn || !subdomainModal) return;
+
+    activeSubdomainServerId = btn.getAttribute('data-open-subdomain-modal');
+    var existingSubdomain = btn.getAttribute('data-subdomain');
+
+    if (subdomainFeedback) subdomainFeedback.classList.add('hidden');
+    if (subdomainInput) subdomainInput.value = existingSubdomain || '';
+
+    if (existingSubdomain) {
+      if (subdomainActiveSection) subdomainActiveSection.classList.remove('hidden');
+      if (subdomainActiveLabel) subdomainActiveLabel.textContent = existingSubdomain;
+    } else {
+      if (subdomainActiveSection) subdomainActiveSection.classList.add('hidden');
+    }
+
+    subdomainModal.classList.remove('hidden');
+  });
+
+  if (subdomainCloseBtn && subdomainModal) {
+    subdomainCloseBtn.addEventListener('click', function() {
+      subdomainModal.classList.add('hidden');
+      activeSubdomainServerId = null;
+    });
+  }
+
+  if (subdomainForm) {
+    subdomainForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!activeSubdomainServerId || !subdomainInput) return;
+
+      var sub = subdomainInput.value.trim().toLowerCase();
+      try {
+        var res = await fetch('/dashboard/server/' + activeSubdomainServerId + '/subdomain', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify({ subdomain: sub })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+          showSubdomainFeedback('Subdomain claimed successfully! (' + (data.data.full_domain || sub) + ')', false);
+          if (subdomainActiveSection) subdomainActiveSection.classList.remove('hidden');
+          if (subdomainActiveLabel) subdomainActiveLabel.textContent = data.data.subdomain;
+        } else {
+          showSubdomainFeedback((data.error && data.error.message) || 'Failed to claim subdomain.', true);
+        }
+      } catch (err) {
+        showSubdomainFeedback('Network error claiming subdomain.', true);
+      }
+    });
+  }
+
+  if (subdomainReleaseBtn) {
+    subdomainReleaseBtn.addEventListener('click', async function() {
+      if (!activeSubdomainServerId) return;
+      try {
+        var res = await fetch('/dashboard/server/' + activeSubdomainServerId + '/subdomain', {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          }
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+          showSubdomainFeedback('Subdomain released.', false);
+          if (subdomainActiveSection) subdomainActiveSection.classList.add('hidden');
+          if (subdomainInput) subdomainInput.value = '';
+        } else {
+          showSubdomainFeedback((data.error && data.error.message) || 'Failed to release subdomain.', true);
+        }
+      } catch (err) {
+        showSubdomainFeedback('Network error releasing subdomain.', true);
+      }
+    });
+  }
+})();
+</script>
+<script src="{{ url_for('static', filename='js/adblock.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/console.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/filemanager.js') }}" defer></script>
+{% endblock %}

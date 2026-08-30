@@ -1,0 +1,66 @@
+{#
+  Sticky top header.
+
+  Sits *below* the sidebar in the stacking order (z-30 vs z-50) so the mobile
+  drawer slides over it rather than under it.
+#}
+{% import "macros/icons.html" as ico %}
+<header class="sticky top-0 z-30 border-b border-ink-800 bg-ink-950/85 backdrop-blur">
+  <div class="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+
+    {% if current_user.is_authenticated %}
+    <button type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false"
+            aria-label="Open navigation"
+            class="-ml-1 rounded-lg p-2 text-slate-400 transition hover:bg-ink-800 hover:text-white lg:hidden">
+      {{ ico.icon('menu', 'h-5 w-5') }}
+    </button>
+    {% else %}
+    <a href="{{ url_for('core.index') }}" class="flex items-center gap-2.5">
+      <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-ink-950">
+        {{ ico.icon('bolt', 'h-4 w-4') }}
+      </span>
+      <span class="text-sm font-extrabold tracking-tight text-white">VpsHosting</span>
+    </a>
+    {% endif %}
+
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-sm font-bold tracking-tight text-white">
+        {{ page_heading | default('', true) }}
+      </p>
+      {% if page_subheading is defined and page_subheading %}
+      <p class="truncate text-xs text-slate-500">{{ page_subheading }}</p>
+      {% endif %}
+    </div>
+
+    {% if current_user.is_authenticated %}
+    {#
+      Credit balance.  `credit_balance` is a Decimal off a NUMERIC(12, 4)
+      column, so the `credits` filter is what trims it to two places.
+    #}
+    <div class="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-900 py-2 pl-3 pr-1 shadow-card">
+      {{ ico.icon('coins', 'h-4 w-4 shrink-0 text-brand-400') }}
+      <span data-credit-balance class="text-sm font-bold tabular-nums text-white">
+        {{ current_user.credit_balance | credits }}
+      </span>
+      <span class="hidden text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:inline">
+        credits
+      </span>
+      <span aria-hidden="true" class="mx-1 h-5 w-px bg-ink-700"></span>
+      <button type="button" disabled title="Top-ups arrive in a later phase"
+              aria-label="Buy credits"
+              class="rounded-lg p-1.5 text-slate-500 transition disabled:cursor-not-allowed">
+        {{ ico.icon('plus', 'h-4 w-4') }}
+      </button>
+    </div>
+    {% else %}
+    <a href="{{ url_for('auth.login') }}"
+       class="rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 transition hover:text-white">
+      Sign in
+    </a>
+    <a href="{{ url_for('auth.register') }}"
+       class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-bold text-ink-950 shadow-lg shadow-brand-500/20 transition hover:bg-brand-400">
+      Get started
+    </a>
+    {% endif %}
+  </div>
+</header>

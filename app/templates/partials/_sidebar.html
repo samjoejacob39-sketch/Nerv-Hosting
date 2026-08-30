@@ -1,0 +1,132 @@
+{#
+  Fixed left navigation.
+
+  Structure the JavaScript relies on (see `static/js/sidebar.js`):
+
+    [data-nav]                 the nav root, carrying the column rules as data-*
+    [data-nav-group]           <li> wrapping one level-one group + its sub-menu
+    [data-nav-level="1"]       every level-one control -- NEVER restyled by JS
+    [data-nav-submenu]         the collapsible wrapper (animated 0fr -> 1fr)
+    [data-nav-submenu-list]    the only element whose column classes JS rewrites
+
+  The grid classes below are also computed server-side from `navigation.py`, so
+  first paint is already correct and the layout does not jump once JS runs.
+#}
+{% import "macros/icons.html" as ico %}
+{% if current_user.is_authenticated %}
+<aside id="sidebar" data-sidebar aria-label="Main navigation"
+       class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col border-r border-ink-800 bg-ink-900 transition-transform duration-300 ease-out lg:translate-x-0">
+
+  <div class="flex h-16 shrink-0 items-center gap-3 border-b border-ink-800 px-5">
+    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-500 text-ink-950 shadow-lg shadow-brand-500/25">
+      {{ ico.icon('bolt', 'h-5 w-5') }}
+    </span>
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-sm font-extrabold tracking-tight text-white">VpsHosting</p>
+      <p class="truncate text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Container panel</p>
+    </div>
+    <button type="button" data-sidebar-close aria-label="Close navigation"
+            class="rounded-lg p-2 text-slate-400 transition hover:bg-ink-800 hover:text-white lg:hidden">
+      {{ ico.icon('close', 'h-5 w-5') }}
+    </button>
+  </div>
+
+  <nav data-nav
+       data-nav-row-threshold="{{ submenu_row_threshold }}"
+       data-nav-rows-per-column="{{ submenu_rows_per_column }}"
+       data-nav-max-columns="{{ submenu_max_columns }}"
+       class="ds-scroll flex-1 space-y-6 overflow-y-auto px-3 py-5">
+    {% for section in sidebar %}
+    <div>
+      {% if section.title %}
+      <p class="px-3 pb-2 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">{{ section.title }}</p>
+      {% endif %}
+      <ul class="space-y-1">
+        {% for entry in section.entries %}
+        <li{% if entry.is_group %} data-nav-group data-nav-key="{{ entry.key }}"{% endif %}>
+          {% if entry.is_group %}
+          <button type="button" data-nav-level="1" data-nav-toggle
+                  aria-expanded="{{ 'true' if entry.active else 'false' }}"
+                  aria-controls="nav-submenu-{{ entry.key }}"
+                  class="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition {{ 'bg-ink-800 text-white' if entry.active else 'text-slate-300 hover:bg-ink-800/70 hover:text-white' }}">
+            {{ ico.icon(entry.icon, 'h-5 w-5 shrink-0 text-slate-400 transition-colors group-hover:text-brand-400') }}
+            <span class="flex-1 text-left">{{ entry.label }}</span>
+            <span class="rounded-md bg-ink-700/60 px-1.5 py-0.5 text-[0.65rem] font-bold tabular-nums text-slate-400">{{ entry.items | length }}</span>
+            {{ ico.icon('chevron', 'h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 group-aria-expanded:rotate-180') }}
+          </button>
+
+          <div id="nav-submenu-{{ entry.key }}" data-nav-submenu
+               data-nav-rows="{{ entry.items | length }}"
+               {% if not entry.active %}inert{% endif %}
+               class="grid transition-[grid-template-rows] duration-200 ease-out {{ 'grid-rows-[1fr]' if entry.active else 'grid-rows-[0fr]' }}">
+            <div class="overflow-hidden">
+              <ul data-nav-submenu-list
+                  class="ml-4 mt-1 grid gap-x-3 gap-y-0.5 border-l border-ink-700 pl-3 grid-cols-{{ entry.columns }}{% if entry.columns > 1 %} grid-flow-col grid-rows-{{ entry.rows }}{% endif %}">
+                {% for item in entry.items %}
+                <li>
+                  {% if item.navigable %}
+                  <a href="{{ item.url }}" data-nav-level="2"
+                     {% if item.active %}aria-current="page" data-nav-current{% endif %}
+                     {% if item.external %}target="_blank" rel="noopener noreferrer"{% endif %}
+                     class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[0.8rem] transition {{ 'bg-brand-500/10 font-semibold text-brand-300' if item.active else 'text-slate-400 hover:bg-ink-800/70 hover:text-slate-100' }}">
+                    <span class="h-1 w-1 shrink-0 rounded-full bg-current opacity-60"></span>
+                    <span class="truncate">{{ item.label }}</span>
+                  </a>
+                  {% else %}
+                  <span data-nav-level="2" aria-disabled="true" title="Coming in a later phase"
+                        class="flex cursor-not-allowed items-center gap-2 rounded-lg px-2.5 py-1.5 text-[0.8rem] text-slate-500">
+                    <span class="h-1 w-1 shrink-0 rounded-full bg-current opacity-40"></span>
+                    <span class="truncate">{{ item.label }}</span>
+                    <span class="ml-auto shrink-0 rounded bg-ink-700/70 px-1 py-px text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">soon</span>
+                  </span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+          {% elif entry.navigable %}
+          <a href="{{ entry.url }}" data-nav-level="1"
+             {% if entry.active %}aria-current="page" data-nav-current{% endif %}
+             class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition {{ 'bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/30' if entry.active else 'text-slate-300 hover:bg-ink-800/70 hover:text-white' }}">
+            {{ ico.icon(entry.icon, 'h-5 w-5 shrink-0 ' ~ ('text-brand-400' if entry.active else 'text-slate-400 group-hover:text-brand-400')) }}
+            <span class="flex-1">{{ entry.label }}</span>
+          </a>
+          {% else %}
+          <span data-nav-level="1" aria-disabled="true" title="Coming in a later phase"
+                class="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-500">
+            {{ ico.icon(entry.icon, 'h-5 w-5 shrink-0 text-slate-600') }}
+            <span class="flex-1">{{ entry.label }}</span>
+            <span class="rounded bg-ink-700/70 px-1 py-px text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">soon</span>
+          </span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </nav>
+
+  <div class="shrink-0 border-t border-ink-800 p-3">
+    <div class="flex items-center gap-3 rounded-xl bg-ink-850 p-3">
+      <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-700 text-xs font-bold uppercase text-brand-300">
+        {{ current_user.username[:2] }}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-semibold text-white">{{ current_user.username }}</p>
+        <p class="truncate text-xs text-slate-500">{{ current_user.email }}</p>
+      </div>
+    </div>
+    {# /logout is POST-only and CSRF-protected, so this has to be a form. #}
+    <form method="post" action="{{ url_for('auth.logout') }}" class="mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="flex w-full items-center justify-center gap-2 rounded-xl border border-ink-700 px-3 py-2.5 text-sm font-semibold text-slate-400 transition hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300">
+        {{ ico.icon('logout', 'h-4 w-4') }}<span>Sign out</span>
+      </button>
+    </form>
+  </div>
+</aside>
+
+<div data-sidebar-overlay hidden class="fixed inset-0 z-40 bg-ink-950/80 backdrop-blur-sm lg:hidden"></div>
+{% endif %}
